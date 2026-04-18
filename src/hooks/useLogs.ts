@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { apiUrl } from '../lib/api'
 
 export interface LogEntry {
   ts: number
@@ -13,7 +14,7 @@ export function useLogs(maxEntries = 200) {
   const esRef = useRef<EventSource | null>(null)
 
   useEffect(() => {
-    const es = new EventSource('/events')
+    const es = new EventSource(apiUrl('/events'))
     esRef.current = es
     es.onmessage = (e) => {
       try {

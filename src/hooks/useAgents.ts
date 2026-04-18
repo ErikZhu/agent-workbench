@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { apiUrl } from '../lib/api'
 
 export interface Agent {
   id: string
@@ -29,7 +30,7 @@ export interface Skill {
 export function useAgents() {
   const [agents, setAgents] = useState<Agent[]>([])
   useEffect(() => {
-    fetch('/api/agents').then(r => r.json()).then(setAgents)
+    fetch(apiUrl('/api/agents')).then(r => r.json()).then(setAgents).catch(() => {})
   }, [])
   return agents
 }
@@ -38,7 +39,7 @@ export function useMemory(agentId: string) {
   const [files, setFiles] = useState<MemoryFile[]>([])
   useEffect(() => {
     if (!agentId) return
-    fetch(`/api/memory/${agentId}`).then(r => r.json()).then(setFiles)
+    fetch(apiUrl(`/api/memory/${agentId}`)).then(r => r.json()).then(setFiles).catch(() => {})
   }, [agentId])
   return files
 }
@@ -46,7 +47,7 @@ export function useMemory(agentId: string) {
 export function useSkills() {
   const [skills, setSkills] = useState<Skill[]>([])
   useEffect(() => {
-    fetch('/api/skills').then(r => r.json()).then(setSkills)
+    fetch(apiUrl('/api/skills')).then(r => r.json()).then(setSkills).catch(() => {})
   }, [])
   return skills
 }
