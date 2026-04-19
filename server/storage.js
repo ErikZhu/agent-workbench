@@ -68,9 +68,10 @@ export class LocalAdapter {
         color: meta.color || 'gray',
         model: meta.model || 'inherit',
         body,
+        hidden: meta.hidden || 'false',
         hasMemory: fs.existsSync(path.join(this.memoryDir, id)),
       }
-    })
+    }).filter(a => a.hidden !== 'true')
   }
 
   getAgent(id) {
