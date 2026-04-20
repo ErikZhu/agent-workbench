@@ -61,10 +61,13 @@ export default function CouncilView({ lang }: { lang: Lang }) {
 
   function scrollToAnchor(id: string) {
     const el = document.getElementById(id)
-    if (!el || !scrollRef.current) return
     const container = scrollRef.current
-    const top = el.offsetTop - 16
-    container.scrollTo({ top, behavior: 'smooth' })
+    if (!el || !container) return
+    // getBoundingClientRect is relative to viewport; subtract container's rect to get scroll offset
+    const elRect = el.getBoundingClientRect()
+    const containerRect = container.getBoundingClientRect()
+    const scrollTarget = container.scrollTop + (elRect.top - containerRect.top) - 24
+    container.scrollTo({ top: scrollTarget, behavior: 'smooth' })
   }
 
   // Build anchor list from all rounds
@@ -83,9 +86,9 @@ export default function CouncilView({ lang }: { lang: Lang }) {
   })
 
   return (
-    <div className="flex h-full" style={{ minHeight: 'calc(100vh - 90px)' }}>
+    <div className="flex flex-col h-full" style={{ minHeight: 'calc(100vh - 90px)' }}>
 
-      {/* Main scroll area */}
+      {/* Main scroll area — single scrollable column */}
       <div className="flex-1 flex flex-col min-w-0">
 
         {/* Header bar */}
@@ -118,16 +121,34 @@ export default function CouncilView({ lang }: { lang: Lang }) {
         </div>
 
         {/* Rounds scroll container */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-6">
-          <div className="max-w-2xl mx-auto space-y-10 pb-6">
-            {rounds.length === 0 ? (
-              <CouncilEmpty lang={lang} />
-            ) : (
-              rounds.map(round => (
-                <CouncilRoundView key={round.id} round={round} lang={lang} />
-              ))
+        <div ref={scrollRef} className="flex-1 overflow-y-auto">
+          {/* Inner layout: anchor nav LEFT + content RIGHT */}
+          <div className="flex min-h-full">
+
+            {/* Left anchor nav — sticky within scroll container */}
+            {anchors.length > 0 && (
+              <div
+                className="flex-shrink-0"
+                style={{ width: 44, position: 'sticky', top: 0, alignSelf: 'flex-start', height: '100vh' }}
+              >
+                <AnchorNav anchors={anchors} onClickAnchor={scrollToAnchor} />
+              </div>
             )}
-            <div ref={bottomRef} />
+
+            {/* Content */}
+            <div className="flex-1 min-w-0 px-6">
+              <div className="max-w-2xl mx-auto space-y-10 pb-6 pt-2">
+                {rounds.length === 0 ? (
+                  <CouncilEmpty lang={lang} />
+                ) : (
+                  rounds.map(round => (
+                    <CouncilRoundView key={round.id} round={round} lang={lang} />
+                  ))
+                )}
+                <div ref={bottomRef} />
+              </div>
+            </div>
+
           </div>
         </div>
 
@@ -214,10 +235,6 @@ export default function CouncilView({ lang }: { lang: Lang }) {
         </div>
       </div>
 
-      {/* Right anchor nav */}
-      {anchors.length > 0 && (
-        <AnchorNav anchors={anchors} onClickAnchor={scrollToAnchor} />
-      )}
     </div>
   )
 }
@@ -229,8 +246,8 @@ function AnchorNav({ anchors, onClickAnchor }: { anchors: AnchorItem[]; onClickA
 
   return (
     <div
-      className="flex-shrink-0 flex flex-col items-center py-6 gap-0"
-      style={{ width: 48, borderLeft: '1px solid var(--border)', background: 'rgba(10,10,15,0.6)', overflowY: 'auto' }}
+      className="flex flex-col items-center py-6 gap-0"
+      style={{ width: 44, height: '100%', borderRight: '1px solid var(--border)', background: 'rgba(10,10,15,0.5)' }}
     >
       {anchors.map((anchor, i) => {
         const isQ = anchor.type === 'question'
@@ -283,12 +300,12 @@ function AnchorNav({ anchors, onClickAnchor }: { anchors: AnchorItem[]; onClickA
                 }}
               />
 
-              {/* Hover tooltip */}
+              {/* Hover tooltip — pops right */}
               {isHovered && (
                 <div
                   style={{
                     position: 'absolute',
-                    right: 'calc(100% + 8px)',
+                    left: 'calc(100% + 8px)',
                     top: '50%',
                     transform: 'translateY(-50%)',
                     background: 'var(--card)',

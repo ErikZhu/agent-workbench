@@ -29,6 +29,9 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col circuit-bg" style={{ background: 'var(--bg)', color: 'var(--fg)' }}>
       {/* Background animation layers */}
+      <div className="aurora-blob aurora-blob-1" />
+      <div className="aurora-blob aurora-blob-2" />
+      <div className="aurora-blob aurora-blob-3" />
       <div className="bg-scan" />
       <Particles />
 
