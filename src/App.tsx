@@ -33,7 +33,7 @@ export default function App() {
       <Particles />
 
       {/* Header */}
-      <header className="flex-shrink-0 px-6 py-3" style={{ borderBottom: '1px solid var(--border)', background: 'rgba(10,10,15,0.95)', backdropFilter: 'blur(12px)' }}>
+      <header className="flex-shrink-0 px-6 py-3" style={{ position: 'sticky', top: 0, zIndex: 50, borderBottom: '1px solid var(--border)', background: 'rgba(10,10,15,0.97)', backdropFilter: 'blur(12px)' }}>
         <div className="max-w-6xl mx-auto flex items-center justify-between">
 
           {/* Logo */}
@@ -125,7 +125,7 @@ export default function App() {
       </header>
 
       {/* Tab bar */}
-      <div className="flex-shrink-0 px-6 overflow-x-auto" style={{ borderBottom: '1px solid var(--border)', background: 'rgba(18,18,26,0.8)' }}>
+      <div className="flex-shrink-0 px-6 overflow-x-auto" style={{ position: 'sticky', top: 45, zIndex: 49, borderBottom: '1px solid var(--border)', background: 'rgba(18,18,26,0.97)', backdropFilter: 'blur(12px)' }}>
         <div className="max-w-6xl mx-auto flex">
 
           {/* Council — first, special style */}
@@ -140,7 +140,7 @@ export default function App() {
           </TabButton>
 
           {/* Agent tabs */}
-          {agents.map(agent => {
+          {agents.filter(a => a.id !== 'council-master').map(agent => {
             const neon = NEON_MAP[agent.color] || NEON_MAP.gray
             return (
               <TabButton
@@ -182,7 +182,7 @@ export default function App() {
       </div>
 
       {/* Main content */}
-      <main className="flex-1 overflow-hidden">
+      <main className="flex-1 overflow-y-auto">
         {activeTab === 'settings' ? (
           <SettingsPanel lang={lang} apiBase={apiBase} onSave={() => {
             setApiBase(getApiBase())
@@ -196,7 +196,7 @@ export default function App() {
             <LogsTab lang={lang} />
           </div>
         ) : (
-          agents.map(agent => (
+          agents.filter(a => a.id !== 'council-master').map(agent => (
             <div key={agent.id} className={activeTab === agent.id ? 'h-full' : 'hidden'}>
               <AgentWorkspace agent={agent} lang={lang} />
             </div>
