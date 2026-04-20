@@ -185,7 +185,7 @@ export default function App() {
       </div>
 
       {/* Main content */}
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto" style={{ position: 'relative', zIndex: 2 }}>
         {activeTab === 'settings' ? (
           <SettingsPanel lang={lang} apiBase={apiBase} onSave={() => {
             setApiBase(getApiBase())

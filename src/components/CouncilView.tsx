@@ -120,35 +120,28 @@ export default function CouncilView({ lang }: { lang: Lang }) {
           <hr className="cyber-hr mt-3 max-w-2xl mx-auto" />
         </div>
 
-        {/* Rounds scroll container */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto">
-          {/* Inner layout: anchor nav LEFT + content RIGHT */}
-          <div className="flex min-h-full">
+        {/* Fixed anchor nav — sits left of content, below tabs */}
+        {anchors.length > 0 && (
+          <div style={{ position: 'fixed', left: 0, top: 90, bottom: 0, width: 44, zIndex: 40 }}>
+            <AnchorNav anchors={anchors} onClickAnchor={scrollToAnchor} />
+          </div>
+        )}
 
-            {/* Left anchor nav — sticky within scroll container */}
-            {anchors.length > 0 && (
-              <div
-                className="flex-shrink-0"
-                style={{ width: 44, position: 'sticky', top: 0, alignSelf: 'flex-start', height: '100vh' }}
-              >
-                <AnchorNav anchors={anchors} onClickAnchor={scrollToAnchor} />
-              </div>
+        {/* Rounds scroll container — left-padded when anchors visible */}
+        <div
+          ref={scrollRef}
+          className="flex-1 overflow-y-auto"
+          style={{ paddingLeft: anchors.length > 0 ? 44 : 0 }}
+        >
+          <div className="max-w-2xl mx-auto px-6 space-y-10 pb-6 pt-2">
+            {rounds.length === 0 ? (
+              <CouncilEmpty lang={lang} />
+            ) : (
+              rounds.map(round => (
+                <CouncilRoundView key={round.id} round={round} lang={lang} />
+              ))
             )}
-
-            {/* Content */}
-            <div className="flex-1 min-w-0 px-6">
-              <div className="max-w-2xl mx-auto space-y-10 pb-6 pt-2">
-                {rounds.length === 0 ? (
-                  <CouncilEmpty lang={lang} />
-                ) : (
-                  rounds.map(round => (
-                    <CouncilRoundView key={round.id} round={round} lang={lang} />
-                  ))
-                )}
-                <div ref={bottomRef} />
-              </div>
-            </div>
-
+            <div ref={bottomRef} />
           </div>
         </div>
 
@@ -246,8 +239,8 @@ function AnchorNav({ anchors, onClickAnchor }: { anchors: AnchorItem[]; onClickA
 
   return (
     <div
-      className="flex flex-col items-center py-6 gap-0"
-      style={{ width: 44, height: '100%', borderRight: '1px solid var(--border)', background: 'rgba(10,10,15,0.5)' }}
+      className="flex flex-col items-center py-4 gap-0"
+      style={{ width: 44, height: '100%', borderRight: '1px solid var(--border)', background: 'rgba(10,10,15,0.85)', overflowY: 'auto', overflowX: 'visible' }}
     >
       {anchors.map((anchor, i) => {
         const isQ = anchor.type === 'question'
