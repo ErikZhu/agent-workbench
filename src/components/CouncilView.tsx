@@ -30,7 +30,7 @@ interface AnchorItem {
 // ── Main view ─────────────────────────────────────────────────────────────────
 
 export default function CouncilView({ lang }: { lang: Lang }) {
-  const { rounds, streaming, ask, stop, clear } = useCouncil()
+  const { rounds, streaming, error, ask, stop, clear, clearError } = useCouncil()
   const [input, setInput] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -124,6 +124,23 @@ export default function CouncilView({ lang }: { lang: Lang }) {
         {anchors.length > 0 && (
           <div style={{ position: 'fixed', left: 0, top: 90, bottom: 0, width: 44, zIndex: 40 }}>
             <AnchorNav anchors={anchors} onClickAnchor={scrollToAnchor} />
+          </div>
+        )}
+
+        {/* Error banner */}
+        {error && (
+          <div
+            className="flex-shrink-0 mx-6 mb-2 flex items-center justify-between gap-3 px-4 py-2.5 text-xs"
+            style={{
+              border: '1px solid #ff336650',
+              background: '#ff336510',
+              color: '#ff6688',
+              fontFamily: 'JetBrains Mono, monospace',
+              maxWidth: '100%',
+            }}
+          >
+            <span>⚠ {error}</span>
+            <button onClick={clearError} style={{ opacity: 0.6, flexShrink: 0 }}>✕</button>
           </div>
         )}
 

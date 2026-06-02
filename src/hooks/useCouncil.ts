@@ -39,6 +39,7 @@ function loadRounds(): CouncilRound[] {
 export function useCouncil() {
   const [rounds, setRounds] = useState<CouncilRound[]>(() => loadRounds())
   const [streaming, setStreaming] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const abortRef = useRef<(() => void) | null>(null)
 
   // Persist to localStorage on every change (cap to last 20 rounds)
@@ -92,7 +93,12 @@ export function useCouncil() {
           try {
             const event = JSON.parse(line.slice(6))
 
-            if (event.type === 'start') {
+            if (event.type === 'error') {
+              setError(event.message || 'Server error')
+              setRounds(prev => prev.map(r =>
+                r.id === roundId ? { ...r, finished: true } : r
+              ))
+            } else if (event.type === 'start') {
               const initialResponses: AgentResponse[] = event.agents.map(
                 (a: { id: string; name: string; color: string }) => ({
                   agentId: a.id, name: a.name, color: a.color, text: '', done: false,
@@ -171,6 +177,7 @@ export function useCouncil() {
       }
     } catch (e) {
       if ((e as Error).name !== 'AbortError') {
+        setError(`Cannot reach server. Configure API URL in Settings.`)
         setRounds(prev => prev.map(r =>
           r.id === roundId ? { ...r, finished: true } : r
         ))
@@ -194,8 +201,11 @@ export function useCouncil() {
 
   const clear = useCallback(() => {
     setRounds([])
+    setError(null)
     localStorage.removeItem(COUNCIL_STORAGE_KEY)
   }, [])
 
-  return { rounds, streaming, ask, stop, clear }
+  const clearError = useCallback(() => setError(null), [])
+
+  return { rounds, streaming, error, ask, stop, clear, clearError }
 }

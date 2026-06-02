@@ -254,9 +254,10 @@ app.post('/api/council', (req, res) => {
 
   // Determine which agents to consult
   const allAgents = storage.listAgents()
-  const targets = agentIds?.length
+  const targets = (agentIds?.length
     ? allAgents.filter(a => agentIds.includes(a.id))
     : allAgents
+  ).filter(a => a.id !== 'council-master')
 
   if (targets.length === 0) {
     sendEvent({ type: 'error', message: 'No agents available' })

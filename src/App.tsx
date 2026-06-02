@@ -153,7 +153,24 @@ export default function App() {
             <span className="hidden sm:inline text-xs opacity-40 tracking-wider">{t(lang, 'councilSub')}</span>
           </TabButton>
 
-          {/* Agent tabs */}
+          {/* Agent tabs — or disconnected hint */}
+          {agents.filter(a => a.id !== 'council-master').length === 0 && (
+            <button
+              onClick={() => setTab('settings')}
+              className="flex items-center gap-1.5 px-4 py-3 text-xs uppercase tracking-widest whitespace-nowrap flex-shrink-0"
+              style={{
+                fontFamily: 'JetBrains Mono, monospace',
+                color: '#ff6688',
+                opacity: 0.7,
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+              }}
+            >
+              <span style={{ fontSize: 9 }}>⚠</span>
+              <span>{lang === 'zh' ? '未连接 server — 点击配置' : 'No server — click to configure'}</span>
+            </button>
+          )}
           {agents.filter(a => a.id !== 'council-master').map(agent => {
             const neon = NEON_MAP[agent.color] || NEON_MAP.gray
             return (
