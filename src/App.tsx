@@ -41,18 +41,29 @@ export default function App() {
 
           {/* Logo */}
           <div className="flex items-center gap-3">
-            <div
-              className="cyber-clip-sm flex items-center justify-center text-xs font-black tracking-widest"
-              style={{
-                width: 28, height: 28,
-                background: 'var(--accent-dim)',
-                border: '1px solid var(--accent)',
-                color: 'var(--accent)',
-                fontFamily: 'Orbitron, monospace',
-                boxShadow: 'var(--glow-sm)',
-              }}
-            >
-              A
+            {/* Rothko-style color field painting */}
+            <div style={{ width: 32, height: 28, flexShrink: 0, overflow: 'hidden', borderRadius: 1 }}>
+              <svg width="32" height="28" viewBox="0 0 32 28" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <filter id="rko-blur">
+                    <feGaussianBlur stdDeviation="1.2" />
+                  </filter>
+                  <filter id="rko-edge-blur">
+                    <feGaussianBlur stdDeviation="0.6" />
+                  </filter>
+                </defs>
+                {/* Dark background field */}
+                <rect width="32" height="28" fill="#1a0a0a" />
+                {/* Top color band — deep crimson */}
+                <rect x="1" y="1" width="30" height="11" fill="#8b1a1a" filter="url(#rko-blur)" opacity="0.95" />
+                <rect x="2" y="1.5" width="28" height="10" fill="#b52020" filter="url(#rko-edge-blur)" opacity="0.7" />
+                {/* Middle thin gap — nearly invisible */}
+                {/* Bottom color band — warm ochre/orange */}
+                <rect x="1" y="14" width="30" height="12" fill="#c45a00" filter="url(#rko-blur)" opacity="0.92" />
+                <rect x="2" y="14.5" width="28" height="11" fill="#e06820" filter="url(#rko-edge-blur)" opacity="0.65" />
+                {/* Soft luminous center glow */}
+                <rect x="4" y="10" width="24" height="8" fill="#ff8830" filter="url(#rko-blur)" opacity="0.25" />
+              </svg>
             </div>
             <div className="flex items-baseline gap-2">
               <span

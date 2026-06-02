@@ -1,11 +1,30 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiUrl } from '../lib/api'
 
+export interface ToolUseBlock {
+  toolId: string
+  toolName: string
+  input: Record<string, unknown>
+  result?: string
+  isError?: boolean
+}
+
+export interface TokenUsage {
+  inputTokens: number
+  outputTokens: number
+  cacheRead: number
+  cacheWrite: number
+  costUsd: number
+  durationMs: number
+}
+
 export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
   text: string
   pending?: boolean
+  toolCalls?: ToolUseBlock[]
+  usage?: TokenUsage
 }
 
 const STORAGE_KEY = (agentId: string) => `chat_history_${agentId}`
@@ -16,7 +35,6 @@ export function useChat(agentId: string) {
       const raw = localStorage.getItem(STORAGE_KEY(agentId))
       if (!raw) return []
       const parsed = JSON.parse(raw) as ChatMessage[]
-      // Clear any in-flight pending messages from a previous session
       return parsed.map(m => m.pending ? { ...m, pending: false } : m)
     } catch {
       return []
@@ -26,20 +44,23 @@ export function useChat(agentId: string) {
   const [error, setError] = useState<string | null>(null)
   const abortRef = useRef<(() => void) | null>(null)
 
-  // Persist to localStorage on every change
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY(agentId), JSON.stringify(messages))
-    } catch {
-      // localStorage may be unavailable (private browsing / quota exceeded)
-    }
+    } catch {}
   }, [agentId, messages])
 
   const send = useCallback(async (text: string) => {
     if (!text.trim() || streaming) return
 
     const userMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', text }
-    const assistantMsg: ChatMessage = { id: crypto.randomUUID(), role: 'assistant', text: '', pending: true }
+    const assistantMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: 'assistant',
+      text: '',
+      pending: true,
+      toolCalls: [],
+    }
 
     setMessages(prev => [...prev, userMsg, assistantMsg])
     setStreaming(true)
@@ -56,9 +77,7 @@ export function useChat(agentId: string) {
         signal: ctrl.signal,
       })
 
-      if (!res.ok || !res.body) {
-        throw new Error(`HTTP ${res.status}`)
-      }
+      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`)
 
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
@@ -75,25 +94,53 @@ export function useChat(agentId: string) {
           if (!line.startsWith('data: ')) continue
           try {
             const event = JSON.parse(line.slice(6))
+
             if (event.type === 'delta') {
               setMessages(prev => prev.map(m =>
                 m.id === assistantMsg.id ? { ...m, text: m.text + event.text } : m
               ))
+
+            } else if (event.type === 'tool_use') {
+              setMessages(prev => prev.map(m => {
+                if (m.id !== assistantMsg.id) return m
+                const newCall: ToolUseBlock = {
+                  toolId: event.toolId,
+                  toolName: event.toolName,
+                  input: event.input || {},
+                }
+                return { ...m, toolCalls: [...(m.toolCalls || []), newCall] }
+              }))
+
+            } else if (event.type === 'tool_result') {
+              setMessages(prev => prev.map(m => {
+                if (m.id !== assistantMsg.id) return m
+                const toolCalls = (m.toolCalls || []).map(tc =>
+                  tc.toolId === event.toolId
+                    ? { ...tc, result: event.content, isError: event.isError }
+                    : tc
+                )
+                return { ...m, toolCalls }
+              }))
+
             } else if (event.type === 'done') {
-              // replace full text with final result if provided
-              if (event.text) {
-                setMessages(prev => prev.map(m =>
-                  m.id === assistantMsg.id ? { ...m, text: event.text, pending: false } : m
-                ))
-              } else {
-                setMessages(prev => prev.map(m =>
-                  m.id === assistantMsg.id ? { ...m, pending: false } : m
-                ))
-              }
+              // Store usage, do NOT replace text (deltas are already accumulated)
+              const usage: TokenUsage | undefined = event.usage ? {
+                inputTokens: event.usage.input_tokens || 0,
+                outputTokens: event.usage.output_tokens || 0,
+                cacheRead: event.usage.cache_read_input_tokens || 0,
+                cacheWrite: event.usage.cache_creation_input_tokens || 0,
+                costUsd: event.costUsd || 0,
+                durationMs: event.durationMs || 0,
+              } : undefined
+              setMessages(prev => prev.map(m =>
+                m.id === assistantMsg.id ? { ...m, pending: false, usage } : m
+              ))
+
             } else if (event.type === 'end') {
               setMessages(prev => prev.map(m =>
                 m.id === assistantMsg.id ? { ...m, pending: false } : m
               ))
+
             } else if (event.type === 'error') {
               setError(event.message)
               setMessages(prev => prev.map(m =>
@@ -124,11 +171,11 @@ export function useChat(agentId: string) {
     setMessages([])
     setError(null)
     localStorage.removeItem(STORAGE_KEY(agentId))
+    // Also clear server-side session so next message starts fresh
+    fetch(apiUrl(`/api/chat/${agentId}/session`), { method: 'DELETE' }).catch(() => {})
   }, [agentId])
 
-  const clearError = useCallback(() => {
-    setError(null)
-  }, [])
+  const clearError = useCallback(() => setError(null), [])
 
   return { messages, streaming, error, send, stop, clear, clearError }
 }

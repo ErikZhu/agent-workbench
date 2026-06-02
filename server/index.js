@@ -106,15 +106,22 @@ app.post('/api/log', (req, res) => {
   res.json({ ok: true })
 })
 
+// ── Chat session store (agentId → claude session_id) ──────────────────────
+const agentSessions = new Map()  // agentId -> sessionId
+
+app.delete('/api/chat/:agentId/session', (req, res) => {
+  agentSessions.delete(req.params.agentId)
+  res.json({ ok: true })
+})
+
 // ── Chat (SSE stream) ──────────────────────────────────────────────────────
 
 app.post('/api/chat', (req, res) => {
   const { agentId, message } = req.body
   if (!message) return res.status(400).json({ error: 'message required' })
 
-  // Build agent context: load agent harness as system prefix if available
   const agent = storage.getAgent(agentId)
-  const agentFlag = agentId ? ['--agent', agentId] : []
+  const sessionId = agentSessions.get(agentId)
 
   res.setHeader('Content-Type', 'text/event-stream')
   res.setHeader('Cache-Control', 'no-cache')
@@ -125,10 +132,17 @@ app.post('/api/chat', (req, res) => {
     res.write(`data: ${JSON.stringify({ type, ...data })}\n\n`)
   }
 
-  // Use claude CLI: claude --print --verbose --output-format stream-json
-  const args = ['--print', '--output-format', 'stream-json', '--verbose']
-  if (agent?.body) args.push('--system-prompt', agent.body)
-  args.push(message)
+  // Build args: resume existing session or start fresh
+  let args
+  if (sessionId) {
+    // Continue existing conversation
+    args = ['--resume', sessionId, '--output-format', 'stream-json', '--verbose', '--print', message]
+  } else {
+    // First message — start new session with system prompt
+    args = ['--print', '--output-format', 'stream-json', '--verbose']
+    if (agent?.body) args.push('--system-prompt', agent.body)
+    args.push(message)
+  }
 
   const proc = spawn('claude', args, {
     env: { ...process.env, HOME: process.env.HOME, PATH: process.env.PATH },
@@ -138,29 +152,68 @@ app.post('/api/chat', (req, res) => {
 
   let buffer = ''
 
-  function parseStreamLine(line) {
+  const parseStreamLine = (line) => {
     try {
       const parsed = JSON.parse(line)
-      // stream-json v2 format:
-      // { type: 'assistant', message: { content: [{ type: 'text', text: '...' }] } }
-      // { type: 'result', result: '...', subtype: 'success' }
-      if (parsed.type === 'assistant') {
+
+      if (parsed.type === 'system' && parsed.subtype === 'init') {
+        // Capture session_id for future --resume calls
+        if (parsed.session_id && agentId) {
+          agentSessions.set(agentId, parsed.session_id)
+        }
+        sendEvent('init', {
+          sessionId: parsed.session_id,
+          model: parsed.model,
+          tools: (parsed.tools || []).map(t => t.name || t),
+        })
+
+      } else if (parsed.type === 'assistant') {
         const parts = parsed.message?.content || []
         for (const part of parts) {
-          if (part.type === 'text' && part.text) sendEvent('delta', { text: part.text })
+          if (part.type === 'text' && part.text) {
+            sendEvent('delta', { text: part.text })
+          } else if (part.type === 'tool_use') {
+            sendEvent('tool_use', {
+              toolName: part.name,
+              toolId: part.id,
+              input: part.input,
+            })
+          }
         }
+
+      } else if (parsed.type === 'user') {
+        // Tool results coming back
+        const parts = parsed.message?.content || []
+        for (const part of parts) {
+          if (part.type === 'tool_result') {
+            const content = Array.isArray(part.content)
+              ? part.content.filter(c => c.type === 'text').map(c => c.text).join('\n')
+              : (part.content || '')
+            sendEvent('tool_result', {
+              toolId: part.tool_use_id,
+              content: content.slice(0, 500),  // cap long results
+              isError: part.is_error || false,
+            })
+          }
+        }
+
       } else if (parsed.type === 'result') {
-        sendEvent('done', { text: parsed.result || '' })
+        sendEvent('done', {
+          usage: parsed.usage,
+          costUsd: parsed.total_cost_usd,
+          durationMs: parsed.duration_ms,
+          numTurns: parsed.num_turns,
+        })
       }
     } catch {
-      // ignore non-JSON lines (system init, etc.)
+      // ignore non-JSON lines
     }
   }
 
   proc.stdout.on('data', (chunk) => {
     buffer += chunk.toString()
     const lines = buffer.split('\n')
-    buffer = lines.pop() // keep incomplete line
+    buffer = lines.pop()
     for (const line of lines) {
       if (line.trim()) parseStreamLine(line)
     }

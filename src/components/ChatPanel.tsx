@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { Agent } from '../hooks/useAgents'
-import { useChat } from '../hooks/useChat'
+import { useChat, type ToolUseBlock, type TokenUsage } from '../hooks/useChat'
 import VoiceButton from './VoiceButton'
 import { t, type Lang } from '../lib/i18n'
 
@@ -78,7 +78,7 @@ export default function ChatPanel({ agent, lang }: { agent: Agent; lang: Lang })
           </div>
         ) : (
           messages.map(msg => (
-            <MessageBubble key={msg.id} role={msg.role} text={msg.text} pending={msg.pending} neon={neon} />
+            <MessageBubble key={msg.id} role={msg.role} text={msg.text} pending={msg.pending} neon={neon} toolCalls={msg.toolCalls} usage={msg.usage} />
           ))
         )}
         <div ref={bottomRef} />
@@ -189,7 +189,14 @@ export default function ChatPanel({ agent, lang }: { agent: Agent; lang: Lang })
   )
 }
 
-function MessageBubble({ role, text, pending, neon }: { role: 'user' | 'assistant'; text: string; pending?: boolean; neon: string }) {
+function MessageBubble({ role, text, pending, neon, toolCalls, usage }: {
+  role: 'user' | 'assistant'
+  text: string
+  pending?: boolean
+  neon: string
+  toolCalls?: ToolUseBlock[]
+  usage?: TokenUsage
+}) {
   if (role === 'user') {
     return (
       <div className="flex justify-end">
@@ -223,17 +230,133 @@ function MessageBubble({ role, text, pending, neon }: { role: 'user' | 'assistan
         <div style={{ width: 6, height: 6, background: neon, transform: 'rotate(45deg)', boxShadow: `0 0 4px ${neon}` }} />
       </div>
 
-      <div className="flex-1 min-w-0">
-        <div className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--fg)', opacity: 0.85 }}>
-          {text || (pending && <TypingIndicator neon={neon} />)}
-        </div>
-        {pending && text && (
-          <span
-            className="inline-block w-0.5 h-3.5 ml-0.5 align-middle"
-            style={{ background: neon, boxShadow: `0 0 4px ${neon}`, animation: 'blink 1s step-end infinite' }}
-          />
+      <div className="flex-1 min-w-0 space-y-2">
+        {/* Tool calls — show before text */}
+        {toolCalls && toolCalls.length > 0 && (
+          <div className="space-y-1.5">
+            {toolCalls.map((tc, i) => (
+              <ToolCallBlock key={tc.toolId || i} tc={tc} neon={neon} />
+            ))}
+          </div>
         )}
+
+        {/* Text content */}
+        {(text || pending) && (
+          <div>
+            <div className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--fg)', opacity: 0.85 }}>
+              {text || (pending && !toolCalls?.length && <TypingIndicator neon={neon} />)}
+            </div>
+            {pending && text && (
+              <span
+                className="inline-block w-0.5 h-3.5 ml-0.5 align-middle"
+                style={{ background: neon, boxShadow: `0 0 4px ${neon}`, animation: 'blink 1s step-end infinite' }}
+              />
+            )}
+          </div>
+        )}
+
+        {/* Token usage footer */}
+        {usage && <TokenUsageBar usage={usage} neon={neon} />}
       </div>
+    </div>
+  )
+}
+
+function ToolCallBlock({ tc, neon }: { tc: ToolUseBlock; neon: string }) {
+  const [expanded, setExpanded] = useState(false)
+  const isPending = tc.result === undefined
+  const isError = tc.isError
+
+  return (
+    <div
+      style={{
+        border: `1px solid ${isPending ? neon + '50' : isError ? '#ff336650' : neon + '28'}`,
+        background: isPending ? `${neon}06` : isError ? '#ff336608' : 'var(--muted)',
+        fontSize: 11,
+        fontFamily: 'JetBrains Mono, monospace',
+      }}
+    >
+      {/* Header row */}
+      <button
+        onClick={() => setExpanded(e => !e)}
+        className="w-full flex items-center gap-2 px-3 py-1.5 text-left"
+        style={{ cursor: 'pointer' }}
+      >
+        {/* Status indicator */}
+        {isPending ? (
+          <span style={{ color: neon, animation: 'blink 1s step-end infinite', fontSize: 10 }}>◈</span>
+        ) : isError ? (
+          <span style={{ color: '#ff6688', fontSize: 10 }}>✕</span>
+        ) : (
+          <span style={{ color: neon, fontSize: 10 }}>◇</span>
+        )}
+        <span className="uppercase tracking-widest" style={{ color: isPending ? neon : isError ? '#ff6688' : neon + 'aa', letterSpacing: '0.12em' }}>
+          {tc.toolName}
+        </span>
+        {isPending && (
+          <span style={{ color: neon, opacity: 0.5, fontSize: 10, marginLeft: 4 }}>running…</span>
+        )}
+        <span style={{ marginLeft: 'auto', color: 'var(--fg-dim)', opacity: 0.4, fontSize: 10 }}>
+          {expanded ? '▲' : '▼'}
+        </span>
+      </button>
+
+      {/* Expandable details */}
+      {expanded && (
+        <div className="px-3 pb-2 space-y-1.5" style={{ borderTop: `1px solid ${neon}18` }}>
+          {/* Input params */}
+          {Object.keys(tc.input).length > 0 && (
+            <div>
+              <div style={{ color: 'var(--fg-dim)', opacity: 0.5, fontSize: 10, marginBottom: 2 }}>INPUT</div>
+              <pre
+                className="overflow-x-auto text-xs leading-relaxed"
+                style={{ color: 'var(--fg-dim)', maxHeight: 120, overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}
+              >
+                {JSON.stringify(tc.input, null, 2)}
+              </pre>
+            </div>
+          )}
+          {/* Result */}
+          {tc.result !== undefined && (
+            <div>
+              <div style={{ color: isError ? '#ff6688' : 'var(--fg-dim)', opacity: 0.5, fontSize: 10, marginBottom: 2 }}>
+                {isError ? 'ERROR' : 'OUTPUT'}
+              </div>
+              <pre
+                className="overflow-x-auto text-xs leading-relaxed"
+                style={{ color: isError ? '#ff6688' : 'var(--fg-dim)', maxHeight: 120, overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}
+              >
+                {tc.result}
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TokenUsageBar({ usage, neon }: { usage: TokenUsage; neon: string }) {
+  const costStr = usage.costUsd > 0 ? `$${usage.costUsd.toFixed(4)}` : null
+  const durationStr = usage.durationMs > 0 ? `${(usage.durationMs / 1000).toFixed(1)}s` : null
+
+  return (
+    <div
+      className="flex flex-wrap gap-x-3 gap-y-0.5 px-2 py-1"
+      style={{
+        borderTop: `1px solid ${neon}18`,
+        fontFamily: 'JetBrains Mono, monospace',
+        fontSize: 10,
+        color: 'var(--fg-dim)',
+        opacity: 0.55,
+      }}
+    >
+      <span title="Input tokens">↑{usage.inputTokens.toLocaleString()}</span>
+      <span title="Output tokens">↓{usage.outputTokens.toLocaleString()}</span>
+      {usage.cacheRead > 0 && <span title="Cache read">💾{usage.cacheRead.toLocaleString()}</span>}
+      {usage.cacheWrite > 0 && <span title="Cache write">✍{usage.cacheWrite.toLocaleString()}</span>}
+      {costStr && <span title="Cost USD" style={{ color: neon, opacity: 0.7 }}>{costStr}</span>}
+      {durationStr && <span title="Duration">{durationStr}</span>}
     </div>
   )
 }

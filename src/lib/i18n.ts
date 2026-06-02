@@ -2,7 +2,7 @@ export type Lang = 'zh' | 'en'
 
 export const ui = {
   zh: {
-    appName: 'Agent 工作台',
+    appName: 'Erik 的 Agent 体系工作台',
     appSub: 'Erik 的 Claude 体系',
     council: '协同决策',
     councilSub: '多 Agent 协作',
@@ -84,7 +84,7 @@ export const ui = {
     },
   },
   en: {
-    appName: 'Agent Workbench',
+    appName: "Erik's Agent Workbench",
     appSub: "Erik's Claude System",
     council: 'Council',
     councilSub: 'Multi-Agent Collaboration',
